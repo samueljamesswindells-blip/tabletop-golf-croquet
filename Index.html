@@ -1,0 +1,1373 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tabletop Golf Croquet</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #142017;
+      color: #f6f6f1;
+      padding: 18px;
+      display: grid;
+      place-items: center;
+    }
+    .shell { width: min(680px, 100%); }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    h1 {
+      margin: 0 auto 0 0;
+      font-size: clamp(1.35rem, 3vw, 2rem);
+    }
+    .control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+    input[type="range"] { width: 150px; }
+    button {
+      font: inherit;
+      border: 1px solid #71806f;
+      border-radius: 10px;
+      background: #273629;
+      color: white;
+      padding: 9px 13px;
+      cursor: pointer;
+    }
+    button:hover { background: #344a37; }
+    button:focus-visible, input:focus-visible {
+      outline: 3px solid #f0d45c;
+      outline-offset: 2px;
+    }
+    .status {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .pill {
+      border: 1px solid #566554;
+      background: #202e22;
+      border-radius: 999px;
+      padding: 7px 10px;
+      text-align: center;
+    }
+    .team-blue { border-color: #4f80ff; }
+    .team-red { border-color: #ff5b5b; }
+    canvas {
+      display: block;
+      width: 100%;
+      aspect-ratio: 3 / 5;
+      max-height: 82vh;
+      border: 12px solid #5a381f;
+      border-radius: 18px;
+      background: #3b8247;
+      box-shadow: 0 14px 36px rgba(0,0,0,.35);
+      touch-action: none;
+    }
+    .instructions {
+      margin: 12px 2px 0;
+      color: #d4ddd3;
+      line-height: 1.5;
+    }
+    .offside-panel {
+      display: none;
+      margin-top: 12px;
+      padding: 14px;
+      border: 2px solid #f0d45c;
+      border-radius: 14px;
+      background: #202e22;
+    }
+    .offside-panel.open { display: block; }
+    .offside-panel h2 {
+      margin: 0 0 7px;
+      font-size: 1.1rem;
+    }
+    .offside-panel p { margin: 0 0 12px; }
+    .offside-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .offside-actions button { flex: 1 1 145px; }
+    kbd {
+      border: 1px solid #71806f;
+      border-bottom-width: 3px;
+      border-radius: 5px;
+      padding: 1px 5px;
+      background: #263428;
+      font-family: inherit;
+    }
+    @media (max-width: 700px) {
+      .status { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="toolbar">
+      <h1>Tabletop Golf Croquet</h1>
+
+      <label class="control">
+        Power
+        <input id="power" type="range" min="10" max="100" value="55" />
+        <output id="powerOut">55%</output>
+      </label>
+
+      <button id="shoot" type="button">Shoot</button>
+      <button id="jumpToggle" type="button" aria-pressed="false">Jump: Off</button>
+      <button id="reset" type="button">Reset</button>
+    </div>
+
+    <div class="status" aria-live="polite">
+      <div class="pill" id="turn">Turn: Blue</div>
+      <div class="pill" id="target">Target: 1 of 13</div>
+      <div class="pill team-blue" id="scoreBlue">Blue/Black: 0</div>
+      <div class="pill team-red" id="scoreRed">Red/Yellow: 0</div>
+    </div>
+
+    <canvas id="game" width="660" height="1100" aria-label="Playable tabletop golf croquet game"></canvas>
+
+    <section id="offsidePanel" class="offside-panel" aria-live="assertive">
+      <h2>Offside decision</h2>
+      <p id="offsideText"></p>
+      <div class="offside-actions">
+        <button id="leaveOffside" type="button">Leave where it is</button>
+        <button id="westPenalty" type="button">Move to West penalty area</button>
+        <button id="eastPenalty" type="button">Move to East penalty area</button>
+      </div>
+    </section>
+
+    <p class="instructions">
+      Press anywhere on the lawn, drag in the direction you want the ball to travel, then release. Drag a short distance for a delicate shot or farther for more power. Select <strong>Jump: On</strong> before a stroke to jump over the first ball directly in front, provided it is within one quarter of the pitch width. Beyond that range the shot rolls normally, and a second ball will still be struck. You can also aim with the pointer and press
+      <kbd>Space</kbd>, or use <strong>Shoot</strong>. Turns are Blue, Red,
+      Black, Yellow. Blue/Black play against Red/Yellow. Any ball can score the current hoop, including one knocked through by another ball. The current hoop is
+      highlighted. First team to 7 points wins. After a hoop is run, the
+      game checks the halfway line to the next hoop and applies the offside
+      exceptions before offering the opponent a penalty-area decision.
+    </p>
+  </main>
+
+<script>
+"use strict";
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const powerInput = document.getElementById("power");
+const powerOut = document.getElementById("powerOut");
+const shootButton = document.getElementById("shoot");
+const resetButton = document.getElementById("reset");
+const jumpToggleButton = document.getElementById("jumpToggle");
+const offsidePanel = document.getElementById("offsidePanel");
+const offsideText = document.getElementById("offsideText");
+const leaveOffsideButton = document.getElementById("leaveOffside");
+const westPenaltyButton = document.getElementById("westPenalty");
+const eastPenaltyButton = document.getElementById("eastPenalty");
+
+const turnEl = document.getElementById("turn");
+const targetEl = document.getElementById("target");
+const blueScoreEl = document.getElementById("scoreBlue");
+const redScoreEl = document.getElementById("scoreRed");
+
+const W = canvas.width;
+const H = canvas.height;
+const BALL_R = 15;
+const POST_R = 7;
+const WALL_BOUNCE = 0.56;
+const BALL_BOUNCE = 0.82;
+const FRICTION_PER_SECOND = 0.16;
+const STOP_SPEED = 13;
+const MAX_SHOT_SPEED = 2450;
+
+const ballDefs = [
+  { name: "Blue", fill: "#1565d8", text: "#fff", team: 0 },
+  { name: "Red", fill: "#d92d2d", text: "#fff", team: 1 },
+  { name: "Black", fill: "#111", text: "#fff", team: 0 },
+  { name: "Yellow", fill: "#f2d335", text: "#111", team: 1 }
+];
+
+/*
+  Physical layout based on the supplied Golf Croquet diagram:
+  1 = bottom-left
+  2 = top-left
+  3 = top-right
+  4 = bottom-right
+  5 = lower-centre
+  6 = upper-centre
+
+  Each angle is the forward scoring direction for the first circuit.
+*/
+const hoops = [
+  // Layout matched to the supplied diagram:
+  // 2 ----- 3
+  //     6
+  //    peg
+  //     5
+  // 1 ----- 4
+  { id: 1, x: 148, y: 900, angle: -Math.PI / 2 },
+  { id: 2, x: 148, y: 250, angle: -Math.PI / 2 },
+  { id: 3, x: 512, y: 250, angle:  Math.PI / 2 },
+  { id: 4, x: 512, y: 900, angle:  Math.PI / 2 },
+  { id: 5, x: 330, y: 748, angle: -Math.PI / 2 },
+  { id: 6, x: 330, y: 390, angle: -Math.PI / 2 }
+];
+
+/*
+  Standard 13-point Golf Croquet sequence:
+  hoops 1-6, then 1-6 in reverse, then hoop 3 again.
+*/
+const sequence = [
+  { number: 1,  name: "Hoop 1",      hoop: 0, reverse: false },
+  { number: 2,  name: "Hoop 2",      hoop: 1, reverse: false },
+  { number: 3,  name: "Hoop 3",      hoop: 2, reverse: false },
+  { number: 4,  name: "Hoop 4",      hoop: 3, reverse: false },
+  { number: 5,  name: "Hoop 5",      hoop: 4, reverse: false },
+  { number: 6,  name: "Hoop 6",      hoop: 5, reverse: false },
+
+  // Return circuit follows the diagram in reverse direction:
+  // 7 at physical hoop 2, 8 at hoop 1,
+  // 9 at hoop 4, 10 at hoop 3,
+  // 11 at hoop 6, 12 at hoop 5.
+  { number: 7,  name: "Hoop 7",      hoop: 1, reverse: true  },
+  { number: 8,  name: "Hoop 8",      hoop: 0, reverse: true  },
+  { number: 9,  name: "Hoop 9",      hoop: 3, reverse: true  },
+  { number: 10, name: "Hoop 10",     hoop: 2, reverse: true  },
+  { number: 11, name: "Hoop 11",     hoop: 5, reverse: true  },
+  { number: 12, name: "Hoop 12",     hoop: 4, reverse: true  },
+
+  // Deciding hoop: physical hoop 3, in the same direction as hoop 3.
+  { number: 13, name: "Decider (13)", hoop: 2, reverse: false }
+];
+
+let balls = [];
+let currentTurn = 0;
+let targetIndex = 0;
+let scores = [0, 0];
+let aim = { x: 330, y: 579 };
+let dragStart = null;
+let draggingShot = false;
+let dragPower = 0;
+let shotInProgress = false;
+let gameOver = false;
+let message = "Blue to play.";
+let lastTime = performance.now();
+let strokeCounter = 0;
+let currentStroke = null;
+let pendingScoredTarget = null;
+let pendingOffsideBalls = [];
+let activeHalfway = null;
+let awaitingOffsideDecision = false;
+let jumpSelected = false;
+let jumpBall = null;
+let jumpElapsed = 0;
+let jumpDuration = 0.48;
+let jumpArmed = false;
+let jumpedBall = null;
+let jumpClearanceActive = false;
+let jumpStartX = 0;
+let jumpStartY = 0;
+const MAX_JUMP_RANGE = W * 0.25;
+
+const START_POINT = { x: 608, y: 1013 };
+
+const CENTRE_PEG = {
+  x: 330,
+  y: 565,
+  r: 17
+};
+
+const PENALTY_RADIUS = 32;
+const PENALTY_AREAS = {
+  west: { x: 40, y: H / 2, radius: PENALTY_RADIUS },
+  east: { x: W - 40, y: H / 2, radius: PENALTY_RADIUS }
+};
+
+function createBalls() {
+  // Balls enter from the marked lower-right start point one at a time.
+  // Blue is on the court initially. The other balls remain off-court
+  // until their first turn, so they cannot block Blue's opening shot.
+  return ballDefs.map((def, i) => ({
+    x: START_POINT.x,
+    y: START_POINT.y,
+    previousX: START_POINT.x,
+    previousY: START_POINT.y,
+    vx: 0,
+    vy: 0,
+    r: BALL_R,
+    def,
+    inPlay: i === 0,
+    movedThisStroke: false,
+    contactedOpponentThisStroke: false,
+    lastPositionCause: {
+      strokeId: null,
+      strokeTeam: null,
+      opponentContact: false,
+      penaltyPlacement: false
+    }
+  }));
+}
+
+function placeCurrentBallIfNeeded() {
+  const ball = currentBall();
+  if (ball.inPlay) return;
+
+  ball.x = START_POINT.x;
+  ball.y = START_POINT.y;
+  ball.previousX = START_POINT.x;
+  ball.previousY = START_POINT.y;
+  ball.vx = 0;
+  ball.vy = 0;
+  ball.inPlay = true;
+}
+
+function resetGame() {
+  balls = createBalls();
+  currentTurn = 0;
+  targetIndex = 0;
+  scores = [0, 0];
+  shotInProgress = false;
+  gameOver = false;
+  strokeCounter = 0;
+  currentStroke = null;
+  pendingScoredTarget = null;
+  pendingOffsideBalls = [];
+  activeHalfway = null;
+  awaitingOffsideDecision = false;
+  jumpSelected = false;
+  jumpBall = null;
+  jumpElapsed = 0;
+  jumpArmed = false;
+  jumpedBall = null;
+  jumpClearanceActive = false;
+  jumpStartX = 0;
+  jumpStartY = 0;
+  jumpToggleButton.textContent = "Jump: Off";
+  jumpToggleButton.setAttribute("aria-pressed", "false");
+  offsidePanel.classList.remove("open");
+  aim = { x: 148, y: 900 };
+  message = "Blue to play.";
+  updateStatus();
+}
+
+function currentBall() {
+  return balls[currentTurn];
+}
+
+function allStopped() {
+  return balls
+    .filter(b => b.inPlay)
+    .every(b => Math.hypot(b.vx, b.vy) < STOP_SPEED);
+}
+
+function targetData() {
+  return sequence[targetIndex];
+}
+
+function targetHoop() {
+  return hoops[targetData().hoop];
+}
+
+function scoringAngle() {
+  const t = targetData();
+  const base = hoops[t.hoop].angle;
+  return t.reverse ? base + Math.PI : base;
+}
+
+function updateStatus() {
+  turnEl.textContent = `Turn: ${currentBall().def.name}`;
+  targetEl.textContent =
+    gameOver
+      ? "Game over"
+      : `Target: ${targetData().number} of 13 · ${targetData().name}`;
+  blueScoreEl.textContent = `Blue/Black: ${scores[0]}`;
+  redScoreEl.textContent = `Red/Yellow: ${scores[1]}`;
+}
+
+function fireShot(directionX, directionY, power01) {
+  if (gameOver || awaitingOffsideDecision) return;
+  placeCurrentBallIfNeeded();
+
+  if (shotInProgress || !allStopped()) {
+    message = "Wait for the balls to stop.";
+    return;
+  }
+
+  const length = Math.hypot(directionX, directionY);
+  if (length < 0.001) {
+    message = "Drag in the direction you want the ball to travel.";
+    return;
+  }
+
+  const p = Math.max(0.08, Math.min(1, power01));
+  const speed = 95 + p * MAX_SHOT_SPEED;
+  const ball = currentBall();
+
+  strokeCounter += 1;
+  currentStroke = {
+    id: strokeCounter,
+    strikerTeam: ball.def.team,
+    strikerBall: ball
+  };
+  for (const b of balls) {
+    b.movedThisStroke = false;
+    b.contactedOpponentThisStroke = false;
+  }
+  ball.movedThisStroke = true;
+
+  ball.vx = directionX / length * speed;
+  ball.vy = directionY / length * speed;
+
+  jumpBall = jumpSelected ? ball : null;
+  jumpElapsed = 0;
+  jumpArmed = jumpSelected;
+  jumpedBall = null;
+  jumpClearanceActive = false;
+  jumpStartX = ball.x;
+  jumpStartY = ball.y;
+  jumpSelected = false;
+  jumpToggleButton.textContent = "Jump: Off";
+  jumpToggleButton.setAttribute("aria-pressed", "false");
+
+  shotInProgress = true;
+  message = jumpBall
+    ? `${ball.def.name} played a jump shot at ${Math.round(p * 100)}% power.`
+    : `${ball.def.name} played at ${Math.round(p * 100)}% power.`;
+}
+
+function shoot() {
+  if (gameOver) return;
+  placeCurrentBallIfNeeded();
+
+  const ball = currentBall();
+  const dx = aim.x - ball.x;
+  const dy = aim.y - ball.y;
+  fireShot(dx, dy, Number(powerInput.value) / 100);
+}
+function commitStrokeCauses() {
+  if (!currentStroke) return;
+
+  for (const ball of balls) {
+    if (!ball.movedThisStroke) continue;
+
+    ball.lastPositionCause = {
+      strokeId: currentStroke.id,
+      strokeTeam: currentStroke.strikerTeam,
+      opponentContact: ball.contactedOpponentThisStroke,
+      penaltyPlacement: false
+    };
+  }
+}
+
+function advanceTurn() {
+  currentStroke = null;
+  pendingScoredTarget = null;
+  activeHalfway = null;
+  awaitingOffsideDecision = false;
+  offsidePanel.classList.remove("open");
+
+  currentTurn = (currentTurn + 1) % balls.length;
+  placeCurrentBallIfNeeded();
+  message = `${currentBall().def.name} to play.`;
+  updateStatus();
+}
+
+function halfwayData(scoredIndex) {
+  if (scoredIndex < 0 || scoredIndex >= sequence.length - 1) return null;
+
+  const from = hoops[sequence[scoredIndex].hoop];
+  const to = hoops[sequence[scoredIndex + 1].hoop];
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy);
+  if (length < 0.001) return null;
+
+  return {
+    from,
+    to,
+    midX: (from.x + to.x) / 2,
+    midY: (from.y + to.y) / 2,
+    dirX: dx / length,
+    dirY: dy / length,
+    perpX: -dy / length,
+    perpY: dx / length
+  };
+}
+
+function isBeyondHalfway(ball, line) {
+  const relX = ball.x - line.midX;
+  const relY = ball.y - line.midY;
+  return relX * line.dirX + relY * line.dirY > 0;
+}
+
+function isOffsideExempt(ball) {
+  const cause = ball.lastPositionCause;
+
+  // 22(a): reached its position in the stroke just played.
+  if (currentStroke && cause.strokeId === currentStroke.id) return true;
+
+  // 22(b): reached its position through an opponent's stroke.
+  if (cause.strokeTeam !== null && cause.strokeTeam !== ball.def.team) return true;
+
+  // 22(c): reached its position through contact with an opponent's ball.
+  if (cause.opponentContact) return true;
+
+  // 22(d): was directed to a penalty area.
+  if (cause.penaltyPlacement) return true;
+
+  return false;
+}
+
+function findOffsideBalls(scoredIndex) {
+  const line = halfwayData(scoredIndex);
+  activeHalfway = line;
+  if (!line) return [];
+
+  return balls.filter(ball =>
+    ball.inPlay &&
+    isBeyondHalfway(ball, line) &&
+    !isOffsideExempt(ball)
+  );
+}
+
+function showNextOffsideDecision() {
+  if (pendingOffsideBalls.length === 0) {
+    advanceTurn();
+    return;
+  }
+
+  awaitingOffsideDecision = true;
+  const ball = pendingOffsideBalls[0];
+  const decidingTeam = ball.def.team === 0 ? "Red/Yellow" : "Blue/Black";
+  offsideText.textContent =
+    `${ball.def.name} is beyond the halfway line. ${decidingTeam} may leave it, ` +
+    `or move it to either penalty area.`;
+  offsidePanel.classList.add("open");
+  message = `${ball.def.name} is an offside ball.`;
+  updateStatus();
+}
+
+function placeInPenaltyArea(ball, side) {
+  const area = PENALTY_AREAS[side];
+  const inward = area.radius * 0.72;
+
+  ball.x = side === "west" ? area.x + inward : area.x - inward;
+  ball.y = area.y;
+  ball.previousX = ball.x;
+  ball.previousY = ball.y;
+  ball.vx = 0;
+  ball.vy = 0;
+  ball.lastPositionCause = {
+    strokeId: null,
+    strokeTeam: null,
+    opponentContact: false,
+    penaltyPlacement: true
+  };
+}
+
+function resolveOffsideDecision(choice) {
+  if (!awaitingOffsideDecision || pendingOffsideBalls.length === 0) return;
+
+  const ball = pendingOffsideBalls.shift();
+  if (choice === "west" || choice === "east") {
+    placeInPenaltyArea(ball, choice);
+    message = `${ball.def.name} moved to the ${choice === "west" ? "West" : "East"} penalty area.`;
+  } else {
+    message = `${ball.def.name} left in position.`;
+  }
+
+  offsidePanel.classList.remove("open");
+  showNextOffsideDecision();
+}
+
+function finishTurn() {
+  if (!shotInProgress || !allStopped() || gameOver) return;
+
+  for (const b of balls) {
+    b.vx = 0;
+    b.vy = 0;
+  }
+
+  commitStrokeCauses();
+  shotInProgress = false;
+
+  if (pendingScoredTarget !== null) {
+    pendingOffsideBalls = findOffsideBalls(pendingScoredTarget);
+    if (pendingOffsideBalls.length > 0) {
+      showNextOffsideDecision();
+      return;
+    }
+  }
+
+  advanceTurn();
+}
+function resolveWall(b) {
+  let leftCourt = false;
+
+  if (b.x - b.r < 0) {
+    b.x = b.r;
+    leftCourt = true;
+  } else if (b.x + b.r > W) {
+    b.x = W - b.r;
+    leftCourt = true;
+  }
+
+  if (b.y - b.r < 0) {
+    b.y = b.r;
+    leftCourt = true;
+  } else if (b.y + b.r > H) {
+    b.y = H - b.r;
+    leftCourt = true;
+  }
+
+  // Croquet boundary, not a pool cushion: stop the ball where it exits.
+  if (leftCourt) {
+    b.vx = 0;
+    b.vy = 0;
+  }
+}
+
+function resolveCircleCollision(ball, obstacle, obstacleRadius, restitution = WALL_BOUNCE) {
+  const dx = ball.x - obstacle.x;
+  const dy = ball.y - obstacle.y;
+  const d = Math.hypot(dx, dy);
+  const minD = ball.r + obstacleRadius;
+
+  if (d === 0 || d >= minD) return;
+
+  const nx = dx / d;
+  const ny = dy / d;
+  const overlap = minD - d;
+
+  ball.x += nx * overlap;
+  ball.y += ny * overlap;
+
+  const vn = ball.vx * nx + ball.vy * ny;
+  if (vn < 0) {
+    ball.vx -= (1 + restitution) * vn * nx;
+    ball.vy -= (1 + restitution) * vn * ny;
+  }
+}
+
+function resolveCentrePeg(ball) {
+  const beforeVX = ball.vx;
+  const beforeVY = ball.vy;
+
+  resolveCircleCollision(ball, CENTRE_PEG, CENTRE_PEG.r, 0.42);
+
+  // A wooden centre peg should take energy out of the shot.
+  const changed =
+    Math.abs(ball.vx - beforeVX) > 0.001 ||
+    Math.abs(ball.vy - beforeVY) > 0.001;
+
+  if (changed) {
+    ball.vx *= 0.72;
+    ball.vy *= 0.72;
+  }
+}
+
+function jumpHeight() {
+  if (!jumpBall || !jumpClearanceActive) return 0;
+  const t = Math.max(0, Math.min(1, jumpElapsed / jumpDuration));
+  return Math.sin(Math.PI * t) * 46;
+}
+
+function isBallAhead(jumper, other) {
+  const speed = Math.hypot(jumper.vx, jumper.vy);
+  if (speed < 0.01) return false;
+
+  const dirX = jumper.vx / speed;
+  const dirY = jumper.vy / speed;
+  const relX = other.x - jumper.x;
+  const relY = other.y - jumper.y;
+
+  const forward = relX * dirX + relY * dirY;
+  const sideways = Math.abs(relX * -dirY + relY * dirX);
+
+  return forward > -jumper.r &&
+         forward < jumper.r + other.r + 16 &&
+         sideways < jumper.r + other.r * 0.8;
+}
+
+function jumpTravelledDistance(jumper) {
+  return Math.hypot(jumper.x - jumpStartX, jumper.y - jumpStartY);
+}
+
+function jumpCanClear(jumper, other) {
+  if (jumpBall !== jumper) return false;
+
+  // A jump must happen near the start of the stroke. Once the ball has
+  // travelled a quarter of the pitch width, the shot becomes normal.
+  if (jumpArmed && jumpTravelledDistance(jumper) > MAX_JUMP_RANGE) {
+    jumpArmed = false;
+    jumpBall = null;
+    return false;
+  }
+
+  // Once the first ball has been selected, keep ignoring that same ball
+  // until the jumping ball has completely passed it.
+  if (jumpedBall === other && jumpClearanceActive) {
+    const distance = Math.hypot(other.x - jumper.x, other.y - jumper.y);
+    if (distance < jumper.r + other.r + 5) return true;
+  }
+
+  // Trigger the jump from the first ball directly in the shot line.
+  if (jumpArmed && jumpedBall === null && isBallAhead(jumper, other)) {
+    jumpedBall = other;
+    jumpArmed = false;
+    jumpClearanceActive = true;
+    jumpElapsed = 0;
+    return true;
+  }
+
+  return false;
+}
+
+function resolveBallPair(a, b) {
+  if (jumpCanClear(a, b) || jumpCanClear(b, a)) return;
+
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const d = Math.hypot(dx, dy);
+  const minD = a.r + b.r;
+
+  if (d === 0 || d >= minD) return;
+
+  const nx = dx / d;
+  const ny = dy / d;
+  const overlap = minD - d;
+
+  a.x -= nx * overlap * 0.5;
+  a.y -= ny * overlap * 0.5;
+  b.x += nx * overlap * 0.5;
+  b.y += ny * overlap * 0.5;
+
+  const rvx = b.vx - a.vx;
+  const rvy = b.vy - a.vy;
+  const along = rvx * nx + rvy * ny;
+
+  if (along > 0) return;
+
+  const impulse = -(1 + BALL_BOUNCE) * along / 2;
+
+  if (currentStroke) {
+    a.movedThisStroke = true;
+    b.movedThisStroke = true;
+    if (a.def.team !== b.def.team) {
+      a.contactedOpponentThisStroke = true;
+      b.contactedOpponentThisStroke = true;
+    }
+  }
+
+  a.vx -= impulse * nx;
+  a.vy -= impulse * ny;
+  b.vx += impulse * nx;
+  b.vy += impulse * ny;
+}
+
+function hoopGeometry(hoop, angle = hoop.angle) {
+  const halfGap = 30;
+  const dirX = Math.cos(angle);
+  const dirY = Math.sin(angle);
+  const px = -dirY;
+  const py = dirX;
+
+  return {
+    dirX, dirY, px, py, halfGap,
+    a: { x: hoop.x + px * halfGap, y: hoop.y + py * halfGap },
+    b: { x: hoop.x - px * halfGap, y: hoop.y - py * halfGap }
+  };
+}
+
+function resolveHoopPosts(ball) {
+  for (const hoop of hoops) {
+    const g = hoopGeometry(hoop);
+    resolveCircleCollision(ball, g.a, POST_R);
+    resolveCircleCollision(ball, g.b, POST_R);
+  }
+}
+
+function ballRanCurrentHoop(ball) {
+  if (gameOver || !ball.inPlay) return false;
+
+  const hoop = targetHoop();
+  const angle = scoringAngle();
+  const g = hoopGeometry(hoop, angle);
+
+  const prevRX = ball.previousX - hoop.x;
+  const prevRY = ball.previousY - hoop.y;
+  const currRX = ball.x - hoop.x;
+  const currRY = ball.y - hoop.y;
+
+  const prevAlong = prevRX * g.dirX + prevRY * g.dirY;
+  const currAlong = currRX * g.dirX + currRY * g.dirY;
+
+  // Use the closest lateral position during this frame, not only the final
+  // position. This prevents fast red/black/yellow balls from being missed.
+  const prevSide = prevRX * g.px + prevRY * g.py;
+  const currSide = currRX * g.px + currRY * g.py;
+
+  const crossedForward = prevAlong < 0 && currAlong >= 0;
+  if (!crossedForward) return false;
+
+  const denominator = currAlong - prevAlong;
+  const t = Math.abs(denominator) < 0.0001
+    ? 1
+    : Math.max(0, Math.min(1, -prevAlong / denominator));
+  const crossingSide = prevSide + (currSide - prevSide) * t;
+
+  return Math.abs(crossingSide) <= g.halfGap - ball.r * 0.25;
+}
+
+function awardCurrentHoop(ball) {
+  const team = ball.def.team;
+  scores[team] += 1;
+  const teamName = team === 0 ? "Blue/Black" : "Red/Yellow";
+  const scoredNumber = targetData().number;
+  const scoredTargetIndex = targetIndex;
+
+  if (scores[team] >= 7) {
+    gameOver = true;
+    shotInProgress = false;
+    for (const b of balls) {
+      b.vx = 0;
+      b.vy = 0;
+    }
+    message = `${ball.def.name} scored hoop ${scoredNumber}. ${teamName} win 7–${scores[1 - team]}!`;
+    updateStatus();
+    return;
+  }
+
+  message = `${ball.def.name} scored hoop ${scoredNumber} for ${teamName}.`;
+  pendingScoredTarget = scoredTargetIndex;
+  targetIndex = Math.min(targetIndex + 1, sequence.length - 1);
+  updateStatus();
+}
+
+function checkForHoopScore() {
+  if (gameOver) return;
+
+  // Every ball can score, including a ball knocked through by another ball.
+  // Award only the first valid crossing of the currently contested hoop.
+  for (const ball of balls) {
+    if (ballRanCurrentHoop(ball)) {
+      awardCurrentHoop(ball);
+      return;
+    }
+  }
+}
+function update(dt) {
+  const damping = Math.pow(FRICTION_PER_SECOND, dt);
+
+  if (jumpBall && jumpArmed && jumpTravelledDistance(jumpBall) > MAX_JUMP_RANGE) {
+    jumpArmed = false;
+    jumpBall = null;
+  }
+
+  if (jumpBall && jumpClearanceActive) {
+    jumpElapsed += dt;
+    if (jumpElapsed >= jumpDuration) {
+      jumpClearanceActive = false;
+      jumpBall = null;
+      jumpElapsed = 0;
+    }
+  }
+
+  for (const b of balls) {
+    if (!b.inPlay) continue;
+
+    b.previousX = b.x;
+    b.previousY = b.y;
+
+    if (currentStroke && Math.hypot(b.vx, b.vy) >= STOP_SPEED) {
+      b.movedThisStroke = true;
+    }
+
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+
+    // Exponential drag plus constant rolling resistance gives a much more
+    // baize-like stop instead of an endless glassy slide.
+    b.vx *= damping;
+    b.vy *= damping;
+
+    const speed = Math.hypot(b.vx, b.vy);
+    if (speed > 0) {
+      const rollingLoss = 34 * dt;
+      const nextSpeed = Math.max(0, speed - rollingLoss);
+      const scale = nextSpeed / speed;
+      b.vx *= scale;
+      b.vy *= scale;
+    }
+
+    if (Math.hypot(b.vx, b.vy) < STOP_SPEED) {
+      b.vx = 0;
+      b.vy = 0;
+    }
+
+    resolveWall(b);
+    resolveHoopPosts(b);
+    resolveCentrePeg(b);
+  }
+
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = 0; i < balls.length; i++) {
+      for (let j = i + 1; j < balls.length; j++) {
+        if (balls[i].inPlay && balls[j].inPlay) {
+          resolveBallPair(balls[i], balls[j]);
+        }
+      }
+    }
+  }
+
+  checkForHoopScore();
+  finishTurn();
+}
+
+function drawPitch() {
+  ctx.clearRect(0, 0, W, H);
+
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, "#458f50");
+  grad.addColorStop(1, "#347a41");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.globalAlpha = 0.055;
+  ctx.fillStyle = "#fff";
+  for (let x = 0; x < W; x += 90) {
+    ctx.fillRect(x, 0, 45, H);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.strokeStyle = "rgba(255,255,255,.45)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(40, 40, W - 80, H - 80);
+
+  // One-yard penalty areas at the East and West boundary midpoints.
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,255,255,.72)";
+  ctx.fillStyle = "rgba(255,255,255,.09)";
+  ctx.lineWidth = 2;
+
+  ctx.beginPath();
+  ctx.arc(PENALTY_AREAS.west.x, PENALTY_AREAS.west.y, PENALTY_RADIUS,
+          -Math.PI / 2, Math.PI / 2);
+  ctx.lineTo(PENALTY_AREAS.west.x, PENALTY_AREAS.west.y - PENALTY_RADIUS);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(PENALTY_AREAS.east.x, PENALTY_AREAS.east.y, PENALTY_RADIUS,
+          Math.PI / 2, Math.PI * 1.5);
+  ctx.lineTo(PENALTY_AREAS.east.x, PENALTY_AREAS.east.y + PENALTY_RADIUS);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+
+  if (activeHalfway) {
+    const span = Math.max(W, H);
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,227,91,.92)";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([12, 9]);
+    ctx.beginPath();
+    ctx.moveTo(
+      activeHalfway.midX - activeHalfway.perpX * span,
+      activeHalfway.midY - activeHalfway.perpY * span
+    );
+    ctx.lineTo(
+      activeHalfway.midX + activeHalfway.perpX * span,
+      activeHalfway.midY + activeHalfway.perpY * span
+    );
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  ctx.fillStyle = "rgba(255,255,255,.8)";
+  ctx.font = "bold 15px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText("NORTH", W / 2, 27);
+  ctx.fillText("SOUTH", W / 2, H - 13);
+
+  ctx.save();
+  ctx.translate(18, H / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText("WEST", 0, 0);
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(W - 18, H / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.fillText("EAST", 0, 0);
+  ctx.restore();
+}
+
+function drawHoop(hoop) {
+  const g = hoopGeometry(hoop);
+  const isTarget = hoop === targetHoop();
+  const targetAngle = isTarget ? scoringAngle() : hoop.angle;
+  const tg = hoopGeometry(hoop, targetAngle);
+
+  ctx.lineCap = "round";
+  ctx.strokeStyle = isTarget ? "#ffe35b" : "#f0ead7";
+  ctx.lineWidth = isTarget ? 10 : 8;
+
+  // Uprights and crown, viewed from above.
+  for (const p of [g.a, g.b]) {
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y - 20);
+    ctx.lineTo(p.x, p.y + 20);
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(g.a.x, g.a.y);
+  ctx.lineTo(g.b.x, g.b.y);
+  ctx.stroke();
+
+  const labels = {
+    1: "1–8",
+    2: "2–7",
+    3: "3–10–13",
+    4: "4–9",
+    5: "5–12",
+    6: "6–11"
+  };
+
+  // Place labels beside the hoop, as in the supplied diagram,
+  // rather than on top of the opening.
+  let labelX = hoop.x;
+  let labelY = hoop.y;
+
+  if (hoop.id === 1 || hoop.id === 2) {
+    labelX -= 54;
+  } else if (hoop.id === 3 || hoop.id === 4) {
+    labelX += 58;
+  } else {
+    labelX -= 55;
+  }
+
+  ctx.font = hoop.id === 3 ? "bold 12px system-ui" : "bold 14px system-ui";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  const metrics = ctx.measureText(labels[hoop.id]);
+  const boxW = metrics.width + 12;
+  const boxH = 22;
+
+  ctx.fillStyle = "rgba(245,241,220,.90)";
+  ctx.fillRect(labelX - boxW / 2, labelY - boxH / 2, boxW, boxH);
+  ctx.strokeStyle = "rgba(50,45,35,.55)";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(labelX - boxW / 2, labelY - boxH / 2, boxW, boxH);
+
+  ctx.fillStyle = "#171714";
+  ctx.fillText(labels[hoop.id], labelX, labelY);
+
+  if (isTarget && !gameOver) {
+    const ax = hoop.x - tg.dirX * 58;
+    const ay = hoop.y - tg.dirY * 58;
+
+    ctx.fillStyle = "#ffe35b";
+    ctx.beginPath();
+    ctx.moveTo(ax + tg.dirX * 18, ay + tg.dirY * 18);
+    ctx.lineTo(ax - tg.dirX * 5 + tg.px * 9, ay - tg.dirY * 5 + tg.py * 9);
+    ctx.lineTo(ax - tg.dirX * 5 - tg.px * 9, ay - tg.dirY * 5 - tg.py * 9);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+function drawCentrePeg() {
+  const { x, y, r } = CENTRE_PEG;
+
+  ctx.beginPath();
+  ctx.ellipse(x + 5, y + 8, r + 5, r * 0.55, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(0,0,0,.25)";
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = "#eee7d2";
+  ctx.fill();
+  ctx.strokeStyle = "#3b3428";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, r - 3, 0, Math.PI * 2);
+  ctx.clip();
+
+  const colours = ["#1769d2", "#d52e2e", "#111111", "#f0d52f"];
+  const bandHeight = 6;
+  colours.forEach((colour, i) => {
+    ctx.fillStyle = colour;
+    ctx.fillRect(x - r, y - 12 + i * bandHeight, r * 2, bandHeight);
+  });
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.strokeStyle = "#3b3428";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+}
+
+function drawBall(ball, index) {
+  const gradient = ctx.createRadialGradient(
+    ball.x - 5, ball.y - 6, 2,
+    ball.x, ball.y, ball.r
+  );
+  gradient.addColorStop(0, "#fff");
+  gradient.addColorStop(.18, ball.def.fill);
+  gradient.addColorStop(1, "#111");
+
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle =
+    index === currentTurn && !shotInProgress && !gameOver
+      ? "#fff"
+      : "rgba(0,0,0,.5)";
+  ctx.lineWidth =
+    index === currentTurn && !shotInProgress && !gameOver ? 3 : 1.5;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawAim() {
+  if (shotInProgress || gameOver || !allStopped()) return;
+
+  const b = currentBall();
+  if (!b.inPlay) return;
+
+  let dx = aim.x - b.x;
+  let dy = aim.y - b.y;
+  let p = Number(powerInput.value) / 100;
+
+  if (draggingShot && dragStart) {
+    // The gesture can begin anywhere on the lawn. Drag in the direction
+    // the ball should travel, so balls near an edge remain easy to play.
+    dx = aim.x - dragStart.x;
+    dy = aim.y - dragStart.y;
+    p = dragPower;
+  }
+
+  const d = Math.hypot(dx, dy);
+  if (d < 1) return;
+
+  const nx = dx / d;
+  const ny = dy / d;
+  const len = 70 + p * 160;
+
+  ctx.strokeStyle = "rgba(255,255,255,.92)";
+  ctx.lineWidth = 3;
+  ctx.setLineDash([9, 7]);
+  ctx.beginPath();
+  ctx.moveTo(b.x + nx * (b.r + 5), b.y + ny * (b.r + 5));
+  ctx.lineTo(b.x + nx * len, b.y + ny * len);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Croquet mallet behind the active ball while dragging.
+  if (draggingShot) {
+    const malletGap = 24 + p * 78;
+    const handleLength = 145;
+    const headHalf = 30;
+    const headDepth = 15;
+
+    const headX = b.x - nx * malletGap;
+    const headY = b.y - ny * malletGap;
+    const handleEndX = headX - nx * handleLength;
+    const handleEndY = headY - ny * handleLength;
+    const px = -ny;
+    const py = nx;
+
+    // Wooden handle.
+    ctx.strokeStyle = "#b98245";
+    ctx.lineWidth = 10;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(headX, headY);
+    ctx.lineTo(handleEndX, handleEndY);
+    ctx.stroke();
+
+    // Dark grip.
+    ctx.strokeStyle = "#4a3323";
+    ctx.lineWidth = 12;
+    ctx.beginPath();
+    ctx.moveTo(
+      handleEndX + nx * 5,
+      handleEndY + ny * 5
+    );
+    ctx.lineTo(
+      handleEndX + nx * 42,
+      handleEndY + ny * 42
+    );
+    ctx.stroke();
+
+    // Rectangular mallet head, perpendicular to the shot direction.
+    ctx.save();
+    ctx.translate(headX, headY);
+    ctx.rotate(Math.atan2(ny, nx));
+    ctx.fillStyle = "#d2a15f";
+    ctx.strokeStyle = "#5b3b20";
+    ctx.lineWidth = 3;
+    ctx.fillRect(-headDepth, -headHalf, headDepth * 2, headHalf * 2);
+    ctx.strokeRect(-headDepth, -headHalf, headDepth * 2, headHalf * 2);
+
+    // End faces.
+    ctx.fillStyle = "#6f4827";
+    ctx.fillRect(-headDepth, -headHalf, headDepth * 2, 7);
+    ctx.fillRect(-headDepth, headHalf - 7, headDepth * 2, 7);
+    ctx.restore();
+  }
+}
+function drawOverlay() {
+  ctx.fillStyle = "rgba(0,0,0,.42)";
+  ctx.fillRect(0, H - 48, W, 48);
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "bold 18px system-ui";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(message, W / 2, H - 24);
+
+  if (gameOver) {
+    ctx.fillStyle = "rgba(0,0,0,.58)";
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 42px system-ui";
+    ctx.fillText(message, W / 2, H / 2);
+    ctx.font = "20px system-ui";
+    ctx.fillText("Press Reset to play again", W / 2, H / 2 + 45);
+  }
+}
+
+function draw() {
+  drawPitch();
+  hoops.forEach(drawHoop);
+  drawCentrePeg();
+  drawAim();
+  balls.forEach((ball, index) => {
+    if (ball.inPlay) drawBall(ball, index);
+  });
+  drawOverlay();
+}
+
+function frame(now) {
+  const dt = Math.min((now - lastTime) / 1000, 1 / 30);
+  lastTime = now;
+
+  const substeps = 4;
+  for (let i = 0; i < substeps; i++) {
+    update(dt / substeps);
+  }
+
+  draw();
+  requestAnimationFrame(frame);
+}
+
+function canvasPoint(event) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (event.clientX - rect.left) * canvas.width / rect.width,
+    y: (event.clientY - rect.top) * canvas.height / rect.height
+  };
+}
+
+canvas.addEventListener("pointermove", event => {
+  aim = canvasPoint(event);
+
+  if (draggingShot && dragStart) {
+    const distance = Math.hypot(aim.x - dragStart.x, aim.y - dragStart.y);
+    const normalized = Math.min(1, distance / 180);
+    dragPower = Math.max(0.03, Math.pow(normalized, 1.35));
+    powerInput.value = String(Math.round(dragPower * 100));
+    powerOut.value = `${powerInput.value}%`;
+  }
+});
+
+canvas.addEventListener("pointerdown", event => {
+  if (gameOver || awaitingOffsideDecision || shotInProgress || !allStopped()) return;
+
+  placeCurrentBallIfNeeded();
+  aim = canvasPoint(event);
+  dragStart = { x: aim.x, y: aim.y };
+  draggingShot = true;
+  dragPower = 0.03;
+  canvas.setPointerCapture(event.pointerId);
+});
+
+canvas.addEventListener("pointerup", event => {
+  if (!draggingShot || !dragStart) return;
+
+  aim = canvasPoint(event);
+  const directionX = aim.x - dragStart.x;
+  const directionY = aim.y - dragStart.y;
+  draggingShot = false;
+  dragStart = null;
+
+  if (Math.hypot(directionX, directionY) < 6) {
+    message = "Drag a little farther before releasing.";
+    return;
+  }
+
+  fireShot(directionX, directionY, dragPower);
+});
+
+canvas.addEventListener("pointercancel", () => {
+  draggingShot = false;
+  dragStart = null;
+});
+
+powerInput.addEventListener("input", () => {
+  powerOut.value = `${powerInput.value}%`;
+});
+
+leaveOffsideButton.addEventListener("click", () => resolveOffsideDecision("leave"));
+westPenaltyButton.addEventListener("click", () => resolveOffsideDecision("west"));
+eastPenaltyButton.addEventListener("click", () => resolveOffsideDecision("east"));
+
+jumpToggleButton.addEventListener("click", () => {
+  if (gameOver || shotInProgress || awaitingOffsideDecision || !allStopped()) return;
+  jumpSelected = !jumpSelected;
+  jumpToggleButton.textContent = jumpSelected ? "Jump: On" : "Jump: Off";
+  jumpToggleButton.setAttribute("aria-pressed", String(jumpSelected));
+  message = jumpSelected
+    ? "Jump selected. It can clear the first ball within a quarter-pitch-width."
+    : "Normal shot selected.";
+});
+
+shootButton.addEventListener("click", shoot);
+resetButton.addEventListener("click", resetGame);
+
+window.addEventListener("keydown", event => {
+  if (event.code === "Space") {
+    event.preventDefault();
+    shoot();
+  }
+});
+
+resetGame();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
