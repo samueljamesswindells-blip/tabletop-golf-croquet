@@ -357,8 +357,8 @@ let jumpStartX = 0;
 let jumpStartY = 0;
 const MAX_JUMP_RANGE = W * 0.25;
 
-const COURT_MARGIN = 40;
-const START_POINT = { x: 608, y: 1013 };
+const COURT_MARGIN = 65;
+const START_POINT = { x: W - COURT_MARGIN - BALL_R - 8, y: H - COURT_MARGIN - BALL_R - 8 };
 
 const CENTRE_PEG = {
   x: 330,
@@ -368,8 +368,8 @@ const CENTRE_PEG = {
 
 const PENALTY_RADIUS = 32;
 const PENALTY_AREAS = {
-  west: { x: 40, y: H / 2, radius: PENALTY_RADIUS },
-  east: { x: W - 40, y: H / 2, radius: PENALTY_RADIUS }
+  west: { x: COURT_MARGIN, y: H / 2, radius: PENALTY_RADIUS },
+  east: { x: W - COURT_MARGIN, y: H / 2, radius: PENALTY_RADIUS }
 };
 
 function createBalls() {
@@ -1055,7 +1055,7 @@ function drawPitch() {
 
   ctx.strokeStyle = "rgba(255,255,255,.45)";
   ctx.lineWidth = 2;
-  ctx.strokeRect(40, 40, W - 80, H - 80);
+  ctx.strokeRect(COURT_MARGIN, COURT_MARGIN, W - COURT_MARGIN * 2, H - COURT_MARGIN * 2);
 
   // One-yard penalty areas at the East and West boundary midpoints.
   ctx.save();
@@ -1290,10 +1290,10 @@ function drawAim() {
 
   // Croquet mallet behind the active ball while dragging.
   if (draggingShot) {
-    const malletGap = 24 + p * 78;
-    const handleLength = 145;
-    const headHalf = 30;
-    const headDepth = 15;
+    const malletGap = 18 + p * 52;
+    const handleLength = 100;
+    const headHalf = 19;
+    const headDepth = 10;
 
     const headX = b.x - nx * malletGap;
     const headY = b.y - ny * malletGap;
@@ -1304,7 +1304,7 @@ function drawAim() {
 
     // Wooden handle.
     ctx.strokeStyle = "#b98245";
-    ctx.lineWidth = 10;
+    ctx.lineWidth = 6;
     ctx.lineCap = "round";
     ctx.beginPath();
     ctx.moveTo(headX, headY);
@@ -1313,15 +1313,15 @@ function drawAim() {
 
     // Dark grip.
     ctx.strokeStyle = "#4a3323";
-    ctx.lineWidth = 12;
+    ctx.lineWidth = 8;
     ctx.beginPath();
     ctx.moveTo(
       handleEndX + nx * 5,
       handleEndY + ny * 5
     );
     ctx.lineTo(
-      handleEndX + nx * 42,
-      handleEndY + ny * 42
+      handleEndX + nx * 29,
+      handleEndY + ny * 29
     );
     ctx.stroke();
 
@@ -1331,14 +1331,14 @@ function drawAim() {
     ctx.rotate(Math.atan2(ny, nx));
     ctx.fillStyle = "#d2a15f";
     ctx.strokeStyle = "#5b3b20";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2;
     ctx.fillRect(-headDepth, -headHalf, headDepth * 2, headHalf * 2);
     ctx.strokeRect(-headDepth, -headHalf, headDepth * 2, headHalf * 2);
 
     // End faces.
     ctx.fillStyle = "#6f4827";
-    ctx.fillRect(-headDepth, -headHalf, headDepth * 2, 7);
-    ctx.fillRect(-headDepth, headHalf - 7, headDepth * 2, 7);
+    ctx.fillRect(-headDepth, -headHalf, headDepth * 2, 5);
+    ctx.fillRect(-headDepth, headHalf - 7, headDepth * 2, 5);
     ctx.restore();
   }
 }
@@ -1400,7 +1400,7 @@ canvas.addEventListener("pointermove", event => {
 
   if (draggingShot && dragStart) {
     const distance = Math.hypot(aim.x - dragStart.x, aim.y - dragStart.y);
-    const normalized = Math.min(1, distance / 180);
+    const normalized = Math.min(1, distance / 170);
     dragPower = Math.max(0.03, Math.pow(normalized, 1.35));
     powerInput.value = String(Math.round(dragPower * 100));
     powerOut.value = `${powerInput.value}%`;
