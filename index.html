@@ -204,7 +204,7 @@
 
       <label class="control">
         Power
-        <input id="power" type="range" min="10" max="100" value="55" />
+        <input id="power" type="range" min="1" max="100" value="45" />
         <output id="powerOut">55%</output>
       </label>
 
@@ -386,7 +386,7 @@ function createBalls() {
     r: BALL_R,
     def,
     inPlay: i === 0,
-    outOfPlayThisStroke: false,
+    frozenOutOfPlay: false,
     movedThisStroke: false,
     contactedOpponentThisStroke: false,
     lastPositionCause: {
@@ -409,7 +409,7 @@ function placeCurrentBallIfNeeded() {
   ball.vx = 0;
   ball.vy = 0;
   ball.inPlay = true;
-  ball.outOfPlayThisStroke = false;
+  ball.frozenOutOfPlay = false;
 }
 
 function resetGame() {
@@ -450,7 +450,7 @@ function currentBall() {
 
 function allStopped() {
   return balls
-    .filter(b => b.inPlay)
+    .filter(b => b.inPlay && !b.frozenOutOfPlay)
     .every(b => Math.hypot(b.vx, b.vy) < STOP_SPEED);
 }
 
@@ -493,9 +493,10 @@ function fireShot(directionX, directionY, power01) {
     return;
   }
 
-  const p = Math.max(0.08, Math.min(1, power01));
-  const speed = 95 + p * MAX_SHOT_SPEED;
+  const p = Math.max(0.01, Math.min(1, power01));
+  const speed = 28 + p * MAX_SHOT_SPEED;
   const ball = currentBall();
+  ball.frozenOutOfPlay = false;
 
   strokeCounter += 1;
   currentStroke = {
@@ -562,6 +563,11 @@ function advanceTurn() {
 
   currentTurn = (currentTurn + 1) % balls.length;
   placeCurrentBallIfNeeded();
+
+  // A ball that went out remains fixed and cannot be contacted by other
+  // balls. It becomes playable again only when its own turn begins.
+  currentBall().frozenOutOfPlay = false;
+
   message = `${currentBall().def.name} to play.`;
   updateStatus();
 }
@@ -680,7 +686,6 @@ function finishTurn() {
   for (const b of balls) {
     b.vx = 0;
     b.vy = 0;
-    b.outOfPlayThisStroke = false;
   }
 
   commitStrokeCauses();
@@ -697,7 +702,7 @@ function finishTurn() {
   advanceTurn();
 }
 function resolveWall(b) {
-  if (b.outOfPlayThisStroke) return true;
+  if (b.frozenOutOfPlay) return true;
 
   let crossedBoundary = false;
 
@@ -720,7 +725,7 @@ function resolveWall(b) {
   if (crossedBoundary) {
     b.vx = 0;
     b.vy = 0;
-    b.outOfPlayThisStroke = true;
+    b.frozenOutOfPlay = true;
 
     if (jumpBall === b) {
       jumpBall = null;
@@ -829,7 +834,7 @@ function jumpCanClear(jumper, other) {
 }
 
 function resolveBallPair(a, b) {
-  if (a.outOfPlayThisStroke || b.outOfPlayThisStroke) return;
+  if (a.frozenOutOfPlay || b.frozenOutOfPlay) return;
   if (jumpCanClear(a, b) || jumpCanClear(b, a)) return;
 
   const dx = b.x - a.x;
@@ -982,6 +987,12 @@ function update(dt) {
   for (const b of balls) {
     if (!b.inPlay) continue;
 
+    if (b.frozenOutOfPlay) {
+      b.vx = 0;
+      b.vy = 0;
+      continue;
+    }
+
     b.previousX = b.x;
     b.previousY = b.y;
 
@@ -1024,8 +1035,8 @@ function update(dt) {
         if (
           balls[i].inPlay &&
           balls[j].inPlay &&
-          !balls[i].outOfPlayThisStroke &&
-          !balls[j].outOfPlayThisStroke
+          !balls[i].frozenOutOfPlay &&
+          !balls[j].frozenOutOfPlay
         ) {
           resolveBallPair(balls[i], balls[j]);
         }
@@ -1140,6 +1151,29 @@ function drawHoop(hoop) {
   ctx.lineTo(g.b.x, g.b.y);
   ctx.stroke();
 
+  // Tournament hoop colour bands: the middle section of hoop 1–8 is blue,
+  // and the middle section of hoop 5–12 is red.
+  const centreBandColour =
+    hoop.id === 1 ? "#1565d8" :
+    hoop.id === 5 ? "#d62828" :
+    null;
+
+  if (centreBandColour) {
+    const bandStart = 0.36;
+    const bandEnd = 0.64;
+    const startX = g.a.x + (g.b.x - g.a.x) * bandStart;
+    const startY = g.a.y + (g.b.y - g.a.y) * bandStart;
+    const endX = g.a.x + (g.b.x - g.a.x) * bandEnd;
+    const endY = g.a.y + (g.b.y - g.a.y) * bandEnd;
+
+    ctx.strokeStyle = centreBandColour;
+    ctx.lineWidth = isTarget ? 10 : 8;
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+  }
+
   const labels = {
     1: "1–8",
     2: "2–7",
@@ -1249,6 +1283,17 @@ function drawBall(ball, index) {
   ctx.lineWidth =
     index === currentTurn && !shotInProgress && !gameOver ? 3 : 1.5;
   ctx.stroke();
+
+  if (ball.frozenOutOfPlay) {
+    ctx.strokeStyle = "rgba(255,255,255,.9)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ball.x - 6, ball.y - 6);
+    ctx.lineTo(ball.x + 6, ball.y + 6);
+    ctx.moveTo(ball.x + 6, ball.y - 6);
+    ctx.lineTo(ball.x - 6, ball.y + 6);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -1401,7 +1446,7 @@ canvas.addEventListener("pointermove", event => {
   if (draggingShot && dragStart) {
     const distance = Math.hypot(aim.x - dragStart.x, aim.y - dragStart.y);
     const normalized = Math.min(1, distance / 170);
-    dragPower = Math.max(0.03, Math.pow(normalized, 1.35));
+    dragPower = Math.max(0.01, Math.pow(normalized, 1.5));
     powerInput.value = String(Math.round(dragPower * 100));
     powerOut.value = `${powerInput.value}%`;
   }
@@ -1414,7 +1459,7 @@ canvas.addEventListener("pointerdown", event => {
   aim = canvasPoint(event);
   dragStart = { x: aim.x, y: aim.y };
   draggingShot = true;
-  dragPower = 0.03;
+  dragPower = 0.01;
   canvas.setPointerCapture(event.pointerId);
 });
 
