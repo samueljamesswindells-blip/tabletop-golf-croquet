@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Tabletop Golf Croquet</title>
   <style>
     :root {
@@ -10,16 +10,26 @@
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     * { box-sizing: border-box; }
+    html {
+      min-height: 100%;
+      background: #142017;
+    }
     body {
       margin: 0;
       min-height: 100vh;
+      min-height: 100dvh;
       background: #142017;
       color: #f6f6f1;
-      padding: 18px;
-      display: grid;
-      place-items: center;
+      padding:
+        max(10px, env(safe-area-inset-top))
+        max(10px, env(safe-area-inset-right))
+        max(14px, env(safe-area-inset-bottom))
+        max(10px, env(safe-area-inset-left));
     }
-    .shell { width: min(680px, 100%); }
+    .shell {
+      width: min(680px, 100%);
+      margin: 0 auto;
+    }
     .toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -69,19 +79,18 @@
     .team-red { border-color: #ff5b5b; }
     canvas {
       display: block;
-      width: 100%;
-      aspect-ratio: 3 / 5;
-      max-height: 82vh;
-      border: 12px solid #5a381f;
-      border-radius: 18px;
+      width: min(100%, calc((100dvh - 185px) * 0.6));
+      min-width: 0;
+      height: auto;
+      margin: 0 auto;
+      border: clamp(6px, 1.8vw, 12px) solid #5a381f;
+      border-radius: clamp(10px, 2.5vw, 18px);
       background: #3b8247;
       box-shadow: 0 14px 36px rgba(0,0,0,.35);
       touch-action: none;
-    }
-    .instructions {
-      margin: 12px 2px 0;
-      color: #d4ddd3;
-      line-height: 1.5;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
     .offside-panel {
       display: none;
@@ -112,7 +121,79 @@
       font-family: inherit;
     }
     @media (max-width: 700px) {
-      .status { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      body {
+        padding-top: max(8px, env(safe-area-inset-top));
+      }
+      .toolbar {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 7px;
+        margin-bottom: 8px;
+      }
+      h1 {
+        grid-column: 1 / -1;
+        margin: 0;
+        text-align: center;
+        font-size: 1.2rem;
+      }
+      .control {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        width: 100%;
+        gap: 7px;
+      }
+      input[type="range"] {
+        width: 100%;
+        min-width: 0;
+      }
+      button {
+        min-height: 44px;
+        padding: 8px 6px;
+        font-size: 0.95rem;
+      }
+      .status {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+      .pill {
+        padding: 6px 5px;
+        border-radius: 10px;
+        font-size: 0.84rem;
+        line-height: 1.2;
+      }
+      canvas {
+        width: min(100%, calc((100dvh - 180px) * 0.6));
+      }
+    }
+
+    @media (max-width: 420px) {
+      canvas {
+        width: min(100%, calc((100dvh - 175px) * 0.6));
+      }
+    }
+
+    @media (orientation: landscape) and (max-height: 600px) {
+      .shell {
+        width: 100%;
+      }
+      .toolbar {
+        grid-template-columns: minmax(130px, 1fr) minmax(190px, 1.4fr) repeat(3, auto);
+      }
+      h1 {
+        grid-column: auto;
+        text-align: left;
+      }
+      .control {
+        grid-column: auto;
+      }
+      .status {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      canvas {
+        width: min(100%, calc((100dvh - 145px) * 0.6));
+      }
     }
   </style>
 </head>
@@ -129,6 +210,7 @@
 
       <button id="shoot" type="button">Shoot</button>
       <button id="jumpToggle" type="button" aria-pressed="false">Jump: Off</button>
+      <button id="guideToggle" type="button" aria-pressed="true">Guide: On</button>
       <button id="reset" type="button">Reset</button>
     </div>
 
@@ -150,15 +232,6 @@
         <button id="eastPenalty" type="button">Move to East penalty area</button>
       </div>
     </section>
-
-    <p class="instructions">
-      Press anywhere on the lawn, drag in the direction you want the ball to travel, then release. Drag a short distance for a delicate shot or farther for more power. Select <strong>Jump: On</strong> before a stroke to jump over the first ball directly in front, provided it is within one quarter of the pitch width. Beyond that range the shot rolls normally, and a second ball will still be struck. You can also aim with the pointer and press
-      <kbd>Space</kbd>, or use <strong>Shoot</strong>. Turns are Blue, Red,
-      Black, Yellow. Blue/Black play against Red/Yellow. Any ball can score the current hoop, including one knocked through by another ball. The current hoop is
-      highlighted. First team to 7 points wins. After a hoop is run, the
-      game checks the halfway line to the next hoop and applies the offside
-      exceptions before offering the opponent a penalty-area decision.
-    </p>
   </main>
 
 <script>
@@ -172,6 +245,7 @@ const powerOut = document.getElementById("powerOut");
 const shootButton = document.getElementById("shoot");
 const resetButton = document.getElementById("reset");
 const jumpToggleButton = document.getElementById("jumpToggle");
+const guideToggleButton = document.getElementById("guideToggle");
 const offsidePanel = document.getElementById("offsidePanel");
 const offsideText = document.getElementById("offsideText");
 const leaveOffsideButton = document.getElementById("leaveOffside");
@@ -271,6 +345,7 @@ let pendingScoredTarget = null;
 let pendingOffsideBalls = [];
 let activeHalfway = null;
 let awaitingOffsideDecision = false;
+let aimGuideVisible = true;
 let jumpSelected = false;
 let jumpBall = null;
 let jumpElapsed = 0;
@@ -282,6 +357,7 @@ let jumpStartX = 0;
 let jumpStartY = 0;
 const MAX_JUMP_RANGE = W * 0.25;
 
+const COURT_MARGIN = 40;
 const START_POINT = { x: 608, y: 1013 };
 
 const CENTRE_PEG = {
@@ -310,6 +386,7 @@ function createBalls() {
     r: BALL_R,
     def,
     inPlay: i === 0,
+    outOfPlayThisStroke: false,
     movedThisStroke: false,
     contactedOpponentThisStroke: false,
     lastPositionCause: {
@@ -332,6 +409,7 @@ function placeCurrentBallIfNeeded() {
   ball.vx = 0;
   ball.vy = 0;
   ball.inPlay = true;
+  ball.outOfPlayThisStroke = false;
 }
 
 function resetGame() {
@@ -357,6 +435,9 @@ function resetGame() {
   jumpStartY = 0;
   jumpToggleButton.textContent = "Jump: Off";
   jumpToggleButton.setAttribute("aria-pressed", "false");
+  aimGuideVisible = true;
+  guideToggleButton.textContent = "Guide: On";
+  guideToggleButton.setAttribute("aria-pressed", "true");
   offsidePanel.classList.remove("open");
   aim = { x: 148, y: 900 };
   message = "Blue to play.";
@@ -599,6 +680,7 @@ function finishTurn() {
   for (const b of balls) {
     b.vx = 0;
     b.vy = 0;
+    b.outOfPlayThisStroke = false;
   }
 
   commitStrokeCauses();
@@ -615,29 +697,39 @@ function finishTurn() {
   advanceTurn();
 }
 function resolveWall(b) {
-  let leftCourt = false;
+  if (b.outOfPlayThisStroke) return true;
 
-  if (b.x - b.r < 0) {
-    b.x = b.r;
-    leftCourt = true;
-  } else if (b.x + b.r > W) {
-    b.x = W - b.r;
-    leftCourt = true;
+  let crossedBoundary = false;
+
+  if (b.x < COURT_MARGIN) {
+    b.x = COURT_MARGIN + b.r;
+    crossedBoundary = true;
+  } else if (b.x > W - COURT_MARGIN) {
+    b.x = W - COURT_MARGIN - b.r;
+    crossedBoundary = true;
   }
 
-  if (b.y - b.r < 0) {
-    b.y = b.r;
-    leftCourt = true;
-  } else if (b.y + b.r > H) {
-    b.y = H - b.r;
-    leftCourt = true;
+  if (b.y < COURT_MARGIN) {
+    b.y = COURT_MARGIN + b.r;
+    crossedBoundary = true;
+  } else if (b.y > H - COURT_MARGIN) {
+    b.y = H - COURT_MARGIN - b.r;
+    crossedBoundary = true;
   }
 
-  // Croquet boundary, not a pool cushion: stop the ball where it exits.
-  if (leftCourt) {
+  if (crossedBoundary) {
     b.vx = 0;
     b.vy = 0;
+    b.outOfPlayThisStroke = true;
+
+    if (jumpBall === b) {
+      jumpBall = null;
+      jumpArmed = false;
+      jumpClearanceActive = false;
+    }
   }
+
+  return crossedBoundary;
 }
 
 function resolveCircleCollision(ball, obstacle, obstacleRadius, restitution = WALL_BOUNCE) {
@@ -737,6 +829,7 @@ function jumpCanClear(jumper, other) {
 }
 
 function resolveBallPair(a, b) {
+  if (a.outOfPlayThisStroke || b.outOfPlayThisStroke) return;
   if (jumpCanClear(a, b) || jumpCanClear(b, a)) return;
 
   const dx = b.x - a.x;
@@ -918,15 +1011,22 @@ function update(dt) {
       b.vy = 0;
     }
 
-    resolveWall(b);
-    resolveHoopPosts(b);
-    resolveCentrePeg(b);
+    const leftCourt = resolveWall(b);
+    if (!leftCourt) {
+      resolveHoopPosts(b);
+      resolveCentrePeg(b);
+    }
   }
 
   for (let pass = 0; pass < 3; pass++) {
     for (let i = 0; i < balls.length; i++) {
       for (let j = i + 1; j < balls.length; j++) {
-        if (balls[i].inPlay && balls[j].inPlay) {
+        if (
+          balls[i].inPlay &&
+          balls[j].inPlay &&
+          !balls[i].outOfPlayThisStroke &&
+          !balls[j].outOfPlayThisStroke
+        ) {
           resolveBallPair(balls[i], balls[j]);
         }
       }
@@ -1177,14 +1277,16 @@ function drawAim() {
   const ny = dy / d;
   const len = 70 + p * 160;
 
-  ctx.strokeStyle = "rgba(255,255,255,.92)";
-  ctx.lineWidth = 3;
-  ctx.setLineDash([9, 7]);
-  ctx.beginPath();
-  ctx.moveTo(b.x + nx * (b.r + 5), b.y + ny * (b.r + 5));
-  ctx.lineTo(b.x + nx * len, b.y + ny * len);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  if (aimGuideVisible) {
+    ctx.strokeStyle = "rgba(255,255,255,.92)";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([9, 7]);
+    ctx.beginPath();
+    ctx.moveTo(b.x + nx * (b.r + 5), b.y + ny * (b.r + 5));
+    ctx.lineTo(b.x + nx * len, b.y + ny * len);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
 
   // Croquet mallet behind the active ball while dragging.
   if (draggingShot) {
@@ -1354,6 +1456,13 @@ jumpToggleButton.addEventListener("click", () => {
   message = jumpSelected
     ? "Jump selected. It can clear the first ball within a quarter-pitch-width."
     : "Normal shot selected.";
+});
+
+guideToggleButton.addEventListener("click", () => {
+  aimGuideVisible = !aimGuideVisible;
+  guideToggleButton.textContent = aimGuideVisible ? "Guide: On" : "Guide: Off";
+  guideToggleButton.setAttribute("aria-pressed", String(aimGuideVisible));
+  message = aimGuideVisible ? "Aiming guide switched on." : "Aiming guide switched off.";
 });
 
 shootButton.addEventListener("click", shoot);
