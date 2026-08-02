@@ -195,27 +195,30 @@
         width: min(100%, calc((100dvh - 145px) * 0.6));
       }
     }
-    }
-
   
-    /* Desktop: full-height lawn with controls and score panel at the side. */
+    /* Desktop-only layout. Mobile and tablet rules above remain untouched. */
+    @media (min-width: 1000px) {
+      html,
+      body {
+        min-height: 100%;
+      }
 
       body {
-        padding: 14px;
+        padding: 16px;
       }
 
       .shell {
-        width: 100%;
-        height: calc(100vh - 28px);
+        width: min(1500px, 100%);
+        min-height: calc(100vh - 32px);
+        margin: 0 auto;
         display: grid;
-        grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
-        grid-template-rows: auto auto 1fr;
+        grid-template-columns: 360px minmax(0, 1fr);
+        grid-template-rows: auto auto minmax(0, 1fr);
         grid-template-areas:
           "toolbar pitch"
-          "status pitch"
+          "status  pitch"
           "offside pitch";
-        column-gap: 18px;
-        row-gap: 12px;
+        gap: 14px 20px;
         align-items: start;
       }
 
@@ -225,137 +228,21 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
         margin: 0;
-        align-content: start;
-      }
-
-      h1 {
-        grid-column: 1 / -1;
-        margin: 0 0 4px;
-        font-size: clamp(1.8rem, 2.4vw, 2.5rem);
-        line-height: 1.05;
-      }
-
-      .control {
-        grid-column: 1 / -1;
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr) auto;
-        gap: 9px;
-        width: 100%;
-        font-size: 1rem;
-      }
-
-      input[type="range"] {
-        width: 100%;
-        min-width: 0;
-      }
-
-      button {
-        min-height: 46px;
-        padding: 10px 12px;
-        font-size: 1rem;
-      }
-
-      .status {
-        grid-area: status;
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
-        margin: 0;
-      }
-
-      .pill {
-        min-height: 54px;
-        display: grid;
-        place-items: center;
-        border-radius: 13px;
-        padding: 9px 10px;
-        font-size: 1rem;
-        line-height: 1.2;
-      }
-
-      canvas {
-        grid-area: pitch;
-        align-self: center;
-        justify-self: center;
-        width: auto;
-        height: min(calc(100vh - 28px), calc((100vw - 410px) / 0.6));
-        max-width: calc(100vw - 410px);
-        max-height: calc(100vh - 28px);
-        margin: 0;
-        border-width: 14px;
-        border-radius: 20px;
-        box-shadow: 0 18px 46px rgba(0,0,0,.42);
-      }
-
-      .offside-panel {
-        grid-area: offside;
-        width: 100%;
-        margin: 0;
-        align-self: start;
-        max-height: 100%;
-        overflow: auto;
-      }
-    }
-
-      canvas {
-        height: min(calc(100vh - 28px), calc((100vw - 450px) / 0.6));
-        max-width: calc(100vw - 450px);
-      }
-    }
-
-  
-    /* Desktop layout: controls fixed on the left, pitch filling the right side. */
-    @media (min-width: 901px) {
-      html,
-      body {
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-      }
-
-      body {
-        padding: 12px;
-      }
-
-      .shell {
-        width: 100%;
-        height: calc(100vh - 24px);
-        margin: 0;
-        display: grid !important;
-        grid-template-columns: 340px minmax(0, 1fr) !important;
-        grid-template-rows: 1fr !important;
-        gap: 18px;
-        align-items: stretch;
-      }
-
-      .toolbar,
-      .status {
-        width: 100%;
-      }
-
-      .toolbar {
-        grid-column: 1;
-        grid-row: 1;
-        display: grid !important;
-        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-        align-content: start;
-        gap: 10px;
-        margin: 0;
       }
 
       h1 {
         grid-column: 1 / -1;
         margin: 0 0 4px;
         font-size: 2rem;
-        line-height: 1.05;
+        line-height: 1.08;
       }
 
       .control {
         grid-column: 1 / -1;
-        display: grid !important;
-        grid-template-columns: auto minmax(0, 1fr) auto !important;
-        gap: 8px;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
         width: 100%;
+        gap: 8px;
       }
 
       input[type="range"] {
@@ -369,71 +256,40 @@
       }
 
       .status {
-        position: absolute;
-        left: 12px;
-        top: 230px;
-        width: 340px;
-        display: grid !important;
-        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        grid-area: status;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
         margin: 0;
       }
 
       .pill {
-        min-height: 54px;
+        min-height: 52px;
         display: grid;
         place-items: center;
         border-radius: 12px;
         padding: 8px 10px;
-        font-size: 1rem;
         line-height: 1.2;
       }
 
-      .desktop-pitch-column {
-        grid-column: 2;
-        grid-row: 1;
-        min-width: 0;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-      }
-
       canvas {
-        width: auto !important;
-        height: calc(100vh - 24px) !important;
-        max-width: calc(100vw - 382px) !important;
-        max-height: calc(100vh - 24px) !important;
-        margin: 0 !important;
+        grid-area: pitch;
+        width: auto;
+        height: calc(100vh - 32px);
+        max-width: 100%;
+        max-height: calc(100vh - 32px);
+        margin: 0 auto;
+        align-self: center;
+        justify-self: center;
         border-width: 12px;
         border-radius: 18px;
-        box-shadow: 0 18px 46px rgba(0,0,0,.42);
       }
 
       .offside-panel {
-        position: absolute;
-        left: 12px;
-        bottom: 12px;
-        width: 340px;
-        max-height: calc(100vh - 390px);
-        overflow: auto;
+        grid-area: offside;
+        width: 100%;
         margin: 0;
-      }
-    }
-
-    @media (min-width: 1300px) {
-      .shell {
-        grid-template-columns: 380px minmax(0, 1fr) !important;
-      }
-
-      .status,
-      .offside-panel {
-        width: 380px;
-      }
-
-      canvas {
-        max-width: calc(100vw - 422px) !important;
+        align-self: start;
       }
     }
 
@@ -463,10 +319,9 @@
       <div class="pill team-red" id="scoreRed">Red/Yellow: 0</div>
     </div>
 
-    <div class="desktop-pitch-column">
-      <canvas id="game" width="660" height="1100" aria-label="Playable tabletop golf croquet game"></canvas>
+    <canvas id="game" width="660" height="1100" aria-label="Playable tabletop golf croquet game"></canvas>
 
-      <section id="offsidePanel" class="offside-panel" aria-live="assertive">
+    <section id="offsidePanel" class="offside-panel" aria-live="assertive">
       <h2>Offside decision</h2>
       <p id="offsideText"></p>
       <div class="offside-actions">
@@ -474,8 +329,7 @@
         <button id="westPenalty" type="button">Move to West penalty area</button>
         <button id="eastPenalty" type="button">Move to East penalty area</button>
       </div>
-      </section>
-    </div>
+    </section>
   </main>
 
 <script>
