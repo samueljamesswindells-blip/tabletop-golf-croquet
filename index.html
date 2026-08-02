@@ -195,83 +195,122 @@
         width: min(100%, calc((100dvh - 145px) * 0.6));
       }
     }
+    }
+
   
-    /* Larger automatic desktop layout. The same index.html still uses the
-       compact layout above on phones. */
+    /* Desktop: full-height lawn with controls and score panel at the side. */
     @media (min-width: 901px) {
+      html,
       body {
-        padding: 20px 28px 32px;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      body {
+        padding: 14px;
       }
 
       .shell {
-        width: min(1240px, 100%);
+        width: 100%;
+        height: calc(100vh - 28px);
+        display: grid;
+        grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+        grid-template-rows: auto auto 1fr;
+        grid-template-areas:
+          "toolbar pitch"
+          "status pitch"
+          "offside pitch";
+        column-gap: 18px;
+        row-gap: 12px;
+        align-items: start;
       }
 
       .toolbar {
+        grid-area: toolbar;
         display: grid;
-        grid-template-columns:
-          minmax(280px, 1fr)
-          minmax(320px, 1.15fr)
-          repeat(4, auto);
-        gap: 12px;
-        margin-bottom: 14px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin: 0;
+        align-content: start;
       }
 
       h1 {
-        margin: 0;
-        font-size: clamp(1.8rem, 2.4vw, 2.6rem);
+        grid-column: 1 / -1;
+        margin: 0 0 4px;
+        font-size: clamp(1.8rem, 2.4vw, 2.5rem);
+        line-height: 1.05;
       }
 
       .control {
+        grid-column: 1 / -1;
         display: grid;
-        grid-template-columns: auto minmax(210px, 1fr) auto;
-        gap: 10px;
-        font-size: 1.05rem;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 9px;
+        width: 100%;
+        font-size: 1rem;
       }
 
       input[type="range"] {
         width: 100%;
-        min-width: 210px;
+        min-width: 0;
       }
 
       button {
         min-height: 46px;
-        padding: 10px 15px;
+        padding: 10px 12px;
         font-size: 1rem;
       }
 
       .status {
-        gap: 12px;
-        margin-bottom: 14px;
+        grid-area: status;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin: 0;
       }
 
       .pill {
-        border-radius: 14px;
-        padding: 11px 14px;
-        font-size: 1.05rem;
+        min-height: 54px;
+        display: grid;
+        place-items: center;
+        border-radius: 13px;
+        padding: 9px 10px;
+        font-size: 1rem;
+        line-height: 1.2;
       }
 
       canvas {
-        /* Intentionally larger than the mobile version. On shorter laptop
-           screens the page can scroll rather than making the lawn tiny. */
-        width: min(760px, 72vw);
+        grid-area: pitch;
+        align-self: center;
+        justify-self: center;
+        width: auto;
+        height: min(calc(100vh - 28px), calc((100vw - 410px) / 0.6));
+        max-width: calc(100vw - 410px);
+        max-height: calc(100vh - 28px);
+        margin: 0;
         border-width: 14px;
         border-radius: 20px;
         box-shadow: 0 18px 46px rgba(0,0,0,.42);
       }
 
       .offside-panel {
-        width: min(760px, 72vw);
-        margin-left: auto;
-        margin-right: auto;
-        font-size: 1.05rem;
+        grid-area: offside;
+        width: 100%;
+        margin: 0;
+        align-self: start;
+        max-height: 100%;
+        overflow: auto;
       }
     }
 
-    @media (min-width: 1400px) {
-      canvas,
-      .offside-panel {
-        width: min(840px, 68vw);
+    @media (min-width: 1500px) {
+      .shell {
+        grid-template-columns: minmax(330px, 390px) minmax(0, 1fr);
+      }
+
+      canvas {
+        height: min(calc(100vh - 28px), calc((100vw - 450px) / 0.6));
+        max-width: calc(100vw - 450px);
       }
     }
 
