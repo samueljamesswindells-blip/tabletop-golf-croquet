@@ -195,6 +195,86 @@
         width: min(100%, calc((100dvh - 145px) * 0.6));
       }
     }
+  
+    /* Larger automatic desktop layout. The same index.html still uses the
+       compact layout above on phones. */
+    @media (min-width: 901px) {
+      body {
+        padding: 20px 28px 32px;
+      }
+
+      .shell {
+        width: min(1240px, 100%);
+      }
+
+      .toolbar {
+        display: grid;
+        grid-template-columns:
+          minmax(280px, 1fr)
+          minmax(320px, 1.15fr)
+          repeat(4, auto);
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(1.8rem, 2.4vw, 2.6rem);
+      }
+
+      .control {
+        display: grid;
+        grid-template-columns: auto minmax(210px, 1fr) auto;
+        gap: 10px;
+        font-size: 1.05rem;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        min-width: 210px;
+      }
+
+      button {
+        min-height: 46px;
+        padding: 10px 15px;
+        font-size: 1rem;
+      }
+
+      .status {
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .pill {
+        border-radius: 14px;
+        padding: 11px 14px;
+        font-size: 1.05rem;
+      }
+
+      canvas {
+        /* Intentionally larger than the mobile version. On shorter laptop
+           screens the page can scroll rather than making the lawn tiny. */
+        width: min(760px, 72vw);
+        border-width: 14px;
+        border-radius: 20px;
+        box-shadow: 0 18px 46px rgba(0,0,0,.42);
+      }
+
+      .offside-panel {
+        width: min(760px, 72vw);
+        margin-left: auto;
+        margin-right: auto;
+        font-size: 1.05rem;
+      }
+    }
+
+    @media (min-width: 1400px) {
+      canvas,
+      .offside-panel {
+        width: min(840px, 68vw);
+      }
+    }
+
   </style>
 </head>
 <body>
